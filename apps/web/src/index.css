@@ -1,0 +1,222 @@
+@import '@xyflow/react/dist/style.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Inter';
+  src: url('https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiJ-Ek-_EeA.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuBWYAZ9hiJ-Ek-_EeA.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --color-primary: #000000;
+  --color-on-primary: #FFFFFF;
+  --color-secondary: #F5F5F5;
+  --color-on-secondary: #333333;
+  --color-tertiary: #8B5CF6;
+  --color-on-tertiary: #FFFFFF;
+  --color-background: #F8F8F8;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #FFFFFF;
+  --color-on-surface: #1A1A1A;
+  --color-on-surface-variant: #6B7280;
+  --color-outline: #E5E7EB;
+  --color-outline-variant: #D1D5DB;
+  --color-accent: #00D4FF;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-purple-light: #EDE9FE;
+  --color-purple-accent: #8B5CF6;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-outline);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-outline-variant);
+}
+
+input[type="range"] {
+  accent-color: var(--color-primary);
+}
+
+input[type="color"] {
+  -webkit-appearance: none;
+  border: none;
+  cursor: pointer;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="password"],
+textarea,
+select {
+  font-family: inherit;
+  background-color: var(--color-secondary);
+  border: 1px solid var(--color-outline);
+  color: var(--color-on-surface);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.1);
+}
+
+button {
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  outline: none;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-outline rounded-lg p-lg;
+  }
+
+  .card-elevated {
+    @apply bg-surface-elevated rounded-xl p-lg shadow-card;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-on-primary text-label-md rounded-md px-[20px] py-[8px] h-[40px] hover:bg-[#1A1A1A];
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-on-secondary text-label-md rounded-md px-[20px] py-[8px] h-[40px] hover:bg-hover;
+  }
+
+  .btn-outline {
+    @apply bg-transparent border border-outline text-on-surface text-label-md rounded-md px-[20px] py-[8px] h-[40px] hover:border-outline-variant;
+  }
+
+  .btn-purple {
+    @apply bg-purple-accent text-on-tertiary text-label-md rounded-md px-[16px] py-[6px] h-[32px] hover:bg-tertiary;
+  }
+
+  .input-field {
+    @apply bg-secondary border border-outline text-on-surface text-body-md rounded-md px-md py-md h-[40px] focus:border-accent;
+  }
+
+  .badge {
+    @apply bg-secondary text-on-surface-variant text-label-sm rounded-full px-[8px] py-[2px];
+  }
+
+  .badge-accent {
+    @apply bg-purple-light text-purple-accent text-label-sm rounded-full px-[8px] py-[2px];
+  }
+
+  .tab-active {
+    @apply bg-primary text-on-primary text-label-md rounded-full px-[16px] py-[6px];
+  }
+
+  .tab-inactive {
+    @apply bg-secondary text-on-surface-variant text-label-md rounded-full px-[16px] py-[6px] hover:text-on-surface;
+  }
+}
+
+.react-flow__background {
+  background-color: var(--color-background) !important;
+}
+
+.react-flow__node {
+  background-color: var(--color-surface);
+  border-color: var(--color-outline);
+  border-radius: var(--rounded-md);
+}
+
+.react-flow__edge-path {
+  stroke: var(--color-outline);
+}

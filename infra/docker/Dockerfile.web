@@ -1,0 +1,17 @@
+# ─── 前端 Dockerfile ───
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY packages/ ./packages/
+COPY apps/web/package.json ./apps/web/
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY apps/web/ ./apps/web/
+RUN pnpm --filter @director/web build
+
+# 生产镜像
+FROM nginx:alpine
+COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

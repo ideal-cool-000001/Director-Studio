@@ -1,0 +1,30 @@
+{
+  "name": "director-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI 视频导演 Agent 平台 — 画布式工作台 + 智能 Agent 调度",
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@director/web",
+    "dev:api": "cd apps/api && uvicorn src.main:app --reload --port 8000",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "dependencies": {
+    "fdir": "^6.5.0",
+    "picomatch": "^4.0.5",
+    "tinyglobby": "^0.2.17"
+  }
+}

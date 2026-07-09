@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@director/shared-types": ["../../packages/shared-types/src"],
+      "@director/validation-rules": ["../../packages/validation-rules/src"]
+    }
+  },
+  "include": ["src/**/*", "vite-env.d.ts"],
+  "references": [
+    { "path": "../../packages/shared-types" },
+    { "path": "../../packages/validation-rules" }
+  ]
+}

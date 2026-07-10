@@ -13,6 +13,21 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+export const chatService = {
+  send: (data: { message: string; agents: string[]; project_id?: string }) =>
+    api.post('/chat', data),
+  stream: (data: { message: string; agents: string[]; project_id?: string; model?: string; provider?: string }) =>
+    fetch(`${API_BASE}/api/v1/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : '',
+      },
+      body: JSON.stringify(data),
+    }),
+  getModels: (provider?: string) => api.get('/chat/models', { params: provider ? { provider } : {} }),
+};
+
 // 请求拦截器：注入 JWT Token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');

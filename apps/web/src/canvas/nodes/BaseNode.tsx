@@ -6,13 +6,12 @@ import { memo, type ReactNode } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { NodeStatus, NodeType } from '@director/shared-types';
 
-/** 状态颜色映射 */
 const STATUS_COLORS: Record<NodeStatus, string> = {
-  draft: 'bg-gray-500',
-  generating: 'bg-blue-500 animate-pulse',
-  ready: 'bg-green-500',
-  approved: 'bg-emerald-600',
-  failed: 'bg-red-500',
+  draft: 'bg-on-surface-variant',
+  generating: 'bg-info animate-pulse',
+  ready: 'bg-success',
+  approved: 'bg-primary',
+  failed: 'bg-error',
 };
 
 const NODE_ICONS: Record<string, string> = {
@@ -39,44 +38,39 @@ function BaseNodeInner({ data, selected, children }: BaseNodeProps) {
   return (
     <div
       className={`
-        relative rounded-lg border-2 transition-all min-w-[180px]
-        ${selected ? 'border-canvas-accent shadow-lg shadow-canvas-accent/20' : 'border-gray-700'}
-        bg-canvas-node/90 backdrop-blur-sm
+        relative rounded-xl border-2 transition-all duration-normal min-w-[200px]
+        ${selected ? 'border-primary shadow-3 shadow-primary/20 scale-[1.02]' : 'border-outline'}
+        bg-surface/95 backdrop-blur-md
       `}
     >
-      {/* 输入端口 */}
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-3 !h-3 !bg-canvas-accent !border-2 !border-white"
+        className="!w-3 !h-3 !bg-primary !border-2 !border-surface"
       />
 
-      {/* 节点头部 */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-700/50">
-        <span className="text-lg">{NODE_ICONS[nodeType]}</span>
-        <span className="text-sm font-medium truncate flex-1">{label}</span>
+      <div className="flex items-center gap-sm px-md py-sm border-b border-outline">
+        <span className="text-xl">{NODE_ICONS[nodeType]}</span>
+        <span className="text-body-sm font-semibold truncate flex-1 text-on-surface">{label}</span>
         <span className={`w-2.5 h-2.5 rounded-full ${STATUS_COLORS[status]}`} />
       </div>
 
-      {/* 缩略图区域 */}
       {thumbnail && (
-        <div className="px-3 py-2">
+        <div className="px-md py-sm">
           <img
             src={thumbnail}
             alt={label}
-            className="w-full h-24 object-cover rounded"
+            className="w-full h-24 object-cover rounded-lg"
           />
         </div>
       )}
 
-      {/* 自定义内容区域 */}
-      {children && <div className="px-3 py-2">{children}</div>}
+      {children && <div className="px-md py-sm">{children}</div>}
 
-      {/* 输出端口 */}
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-3 !h-3 !bg-canvas-accent !border-2 !border-white"
+        className="!w-3 !h-3 !bg-primary !border-2 !border-surface"
       />
     </div>
   );

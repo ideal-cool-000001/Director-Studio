@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import AIPanel from '@/components/AIPanel/AIPanel';
+import { agentService } from '@/services/api';
 
 interface Character {
   id: string;
@@ -62,6 +63,12 @@ const MOCK_CHAPTERS: Chapter[] = [
   { id: '2', title: '第二章：相遇', scenes: ['2'], wordCount: 320 },
 ];
 
+const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
+  lead: { bg: 'bg-error-bg', text: 'text-error' },
+  supporting: { bg: 'bg-info-bg', text: 'text-info' },
+  extra: { bg: 'bg-surface-muted', text: 'text-on-surface-variant' },
+};
+
 export default function ScriptEditor() {
   const [characters, setCharacters] = useState<Character[]>(MOCK_CHARACTERS);
   const [scenes, setScenes] = useState<Scene[]>(MOCK_SCENES);
@@ -69,346 +76,710 @@ export default function ScriptEditor() {
   const [selectedScene, setSelectedScene] = useState(scenes[0]);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [activeTab, setActiveTab] = useState<'chapters' | 'scenes' | 'characters'>('scenes');
-  const [aiAction, setAiAction] = useState<'continue' | 'polish' | 'generate' | null>(null);
-
-  const handleAiAction = (action: 'continue' | 'polish' | 'generate') => {
-    setAiAction(action);
-  };
+  const [activeMode, setActiveMode] = useState<'edit' | 'upload' | 'generate'>('edit');
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [generateForm, setGenerateForm] = useState({
+    title: '',
+    genre: '',
+    style: '',
+    synopsis: '',
+    characterCount: 2,
+    sceneCount: 5,
+  });
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
 
   const getSceneWordCount = (scene: Scene) => scene.content.length;
 
+  const handleAIContinue = async () => {
+    if (!selectedScene || isAIProcessing) return;
+    setIsAIProcessing(true);
+    try {
+      const response = await agentService.executeAgent('screenwriter', selectedScene.id, {
+        action: 'continue',
+        content: selectedScene.content,
+        genre: generateForm.genre || 'drama',
+        tone: generateForm.style || 'serious',
+        continuation: '请继续编写后续剧情',
+      });
+      if (response.data.success && response.data.data?.content) {
+        setSelectedScene({ ...selectedScene, content: response.data.data.content });
+      }
+    } catch (error) {
+      console.error('AI 续写失败:', error);
+    } finally {
+      setIsAIProcessing(false);
+    }
+  };
+
+  const handleAIPolish = async () => {
+    if (!selectedScene || isAIProcessing) return;
+    setIsAIProcessing(true);
+    try {
+      const response = await agentService.executeAgent('screenwriter', selectedScene.id, {
+        action: 'polish',
+        content: selectedScene.content,
+        instructions: '请优化剧本的语言表达，使对话更加生动自然，增强场景画面感',
+      });
+      if (response.data.success && response.data.data?.content) {
+        setSelectedScene({ ...selectedScene, content: response.data.data.content });
+      }
+    } catch (error) {
+      console.error('AI 润色失败:', error);
+    } finally {
+      setIsAIProcessing(false);
+    }
+  };
+
+  const handleAIGenerateScene = async () => {
+    if (!selectedScene || isAIProcessing) return;
+    setIsAIProcessing(true);
+    try {
+      const response = await agentService.executeAgent('screenwriter', selectedScene.id, {
+        action: 'generate_scene',
+        title: selectedScene.title,
+        location: selectedScene.location,
+        characters: selectedScene.characters.map(id => characters.find(c => c.id === id)?.name || id),
+        description: selectedScene.content || selectedScene.background,
+        genre: generateForm.genre || 'drama',
+        tone: generateForm.style || 'serious',
+      });
+      if (response.data.success && response.data.data?.scene?.content) {
+        setSelectedScene({ ...selectedScene, content: response.data.data.scene.content });
+      }
+    } catch (error) {
+      console.error('AI 生成场景失败:', error);
+    } finally {
+      setIsAIProcessing(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      setUploadedFiles((prev) => [...prev, ...Array.from(files)]);
+    }
+    e.target.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleGenerateScript = async () => {
+    if (!generateForm.title.trim() || !generateForm.synopsis.trim()) return;
+    setIsGenerating(true);
+    try {
+      const response = await agentService.executeAgent('screenwriter', 'new_script', {
+        action: 'generate_full_script',
+        idea: generateForm.title,
+        genre: generateForm.genre || 'drama',
+        tone: generateForm.style || 'serious',
+        word_limit: 2000,
+        character_count: generateForm.characterCount || 2,
+      });
+
+      if (response.data.success && response.data.data?.script) {
+        const script = response.data.data.script;
+        const newScenes: Scene[] = script.scenes?.map((s: any, index: number) => ({
+          id: `${Date.now()}-${index}`,
+          title: s.location || `场景${index + 1}`,
+          content: s.description || '',
+          background: generateForm.style,
+          location: s.location || '未知地点',
+          timeOfDay: s.time_of_day || '白天',
+          characters: s.characters || [],
+          mood: generateForm.style || '正常',
+        })) || [
+          { id: `${Date.now()}-1`, title: '开场', content: script.llm_content || script.synopsis || '', background: generateForm.style, location: '未知地点', timeOfDay: '清晨', characters: [], mood: '期待' },
+        ];
+
+        const newChapters: Chapter[] = [
+          { id: `${Date.now()}`, title: script.title || generateForm.title, scenes: newScenes.map(s => s.id), wordCount: script.word_count || newScenes.reduce((sum, s) => sum + s.content.length, 0) },
+        ];
+
+        const newCharacters: Character[] = script.characters?.map((c: any, index: number) => ({
+          id: `${Date.now()}-char-${index}`,
+          name: c.name || `角色${index + 1}`,
+          role: c.role === 'main' ? 'lead' as const : 'supporting' as const,
+          description: c.description || '',
+          age: c.age || 25,
+          personality: c.personality || '',
+          background: c.background || '',
+          motivation: c.motivation || '',
+          appearance: {
+            hair: '',
+            eyes: '',
+            style: '',
+          },
+        })) || [];
+
+        setScenes((prev) => [...prev, ...newScenes]);
+        setChapters((prev) => [...prev, ...newChapters]);
+        if (newCharacters.length > 0) {
+          setCharacters((prev) => [...prev, ...newCharacters]);
+        }
+        setSelectedScene(newScenes[0]);
+      }
+    } catch (error) {
+      console.error('AI 生成剧本失败:', error);
+      const newScenes: Scene[] = [
+        { id: `${Date.now()}-1`, title: '开场', content: `${generateForm.synopsis.substring(0, 100)}...`, background: generateForm.style, location: '未知地点', timeOfDay: '清晨', characters: [], mood: '期待' },
+        { id: `${Date.now()}-2`, title: '发展', content: '故事开始展开，角色之间的关系逐渐显现...', background: generateForm.style, location: '主要场景', timeOfDay: '下午', characters: [], mood: '紧张' },
+      ];
+
+      const newChapters: Chapter[] = [
+        { id: `${Date.now()}`, title: generateForm.title, scenes: newScenes.map(s => s.id), wordCount: newScenes.reduce((sum, s) => sum + s.content.length, 0) },
+      ];
+
+      setScenes((prev) => [...prev, ...newScenes]);
+      setChapters((prev) => [...prev, ...newChapters]);
+      setSelectedScene(newScenes[0]);
+    } finally {
+      setIsGenerating(false);
+      setActiveMode('edit');
+      setActiveTab('scenes');
+    }
+  };
+
   return (
-    <div className="h-full flex gap-lg p-lg">
-      <div className="flex-1 flex flex-col gap-lg">
-        <div className="flex gap-md">
-          <button
-            onClick={() => setActiveTab('chapters')}
-            className={activeTab === 'chapters' ? 'tab-active' : 'tab-inactive'}
-          >
-            章节大纲
-          </button>
-          <button
-            onClick={() => setActiveTab('scenes')}
-            className={activeTab === 'scenes' ? 'tab-active' : 'tab-inactive'}
-          >
-            场景编辑
-          </button>
-          <button
-            onClick={() => setActiveTab('characters')}
-            className={activeTab === 'characters' ? 'tab-active' : 'tab-inactive'}
-          >
-            人物设定
-          </button>
+    <div className="h-full overflow-y-auto flex gap-lg p-lg animate-fade-in bg-background">
+      <div className="flex-1 flex flex-col gap-lg overflow-hidden">
+        {/* Page Header + Mode Toggles */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-headline-md font-bold tracking-tight text-on-surface">剧本编辑器</h1>
+            <p className="text-body-sm text-on-surface-variant mt-xs">创作、编辑和管理你的剧本</p>
+          </div>
+          <div className="flex gap-sm">
+            <button
+              onClick={() => setActiveMode('edit')}
+              className={`px-md py-sm text-label-md font-medium rounded-full transition-all duration-normal ${
+                activeMode === 'edit' ? 'bg-primary text-on-primary' : 'bg-surface-muted text-on-surface-variant hover:text-on-surface hover:bg-hover'
+              }`}
+              style={activeMode === 'edit' ? { boxShadow: 'var(--shadow-1)' } : undefined}
+            >
+              编辑剧本
+            </button>
+            <button
+              onClick={() => setActiveMode('upload')}
+              className={`px-md py-sm text-label-md font-medium rounded-full transition-all duration-normal flex items-center gap-xs ${
+                activeMode === 'upload' ? 'bg-primary text-on-primary' : 'bg-surface-muted text-on-surface-variant hover:text-on-surface hover:bg-hover'
+              }`}
+              style={activeMode === 'upload' ? { boxShadow: 'var(--shadow-1)' } : undefined}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              上传剧本
+            </button>
+            <button
+              onClick={() => setActiveMode('generate')}
+              className={`px-md py-sm text-label-md font-medium rounded-full transition-all duration-normal flex items-center gap-xs ${
+                activeMode === 'generate' ? 'bg-tertiary text-on-tertiary' : 'bg-surface-muted text-on-surface-variant hover:text-on-surface hover:bg-hover'
+              }`}
+              style={activeMode === 'generate' ? { boxShadow: 'var(--shadow-2)' } : undefined}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              AI 生成
+            </button>
+          </div>
         </div>
 
-        {activeTab === 'chapters' && (
-          <div className="flex-1 card flex flex-col">
-            <div className="flex items-center justify-between p-md border-b border-outline">
-              <h3 className="text-body-md font-semibold text-on-surface">章节列表</h3>
-              <button className="btn-purple">+ 添加章节</button>
+        {activeMode === 'edit' && (
+          <>
+            <div className="flex gap-sm">
+              <button
+                onClick={() => setActiveTab('chapters')}
+                className={`${activeTab === 'chapters' ? 'tab-active' : 'tab-inactive'} transition-all duration-normal`}
+              >
+                章节大纲
+              </button>
+              <button
+                onClick={() => setActiveTab('scenes')}
+                className={`${activeTab === 'scenes' ? 'tab-active' : 'tab-inactive'} transition-all duration-normal`}
+              >
+                场景编辑
+              </button>
+              <button
+                onClick={() => setActiveTab('characters')}
+                className={`${activeTab === 'characters' ? 'tab-active' : 'tab-inactive'} transition-all duration-normal`}
+              >
+                人物设定
+              </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-md">
-              <div className="space-y-md">
-                {chapters.map((chapter, index) => (
-                  <div key={chapter.id} className="flex items-center gap-md p-md bg-secondary rounded-lg">
-                    <span className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center text-body-sm font-medium">
-                      {index + 1}
-                    </span>
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        value={chapter.title}
-                        onChange={(e) => setChapters(prev => prev.map(c => c.id === chapter.id ? { ...c, title: e.target.value } : c))}
-                        className="text-body-md font-medium bg-transparent border-none outline-none"
-                      />
-                      <p className="text-body-sm text-on-surface-variant">
-                        {chapter.scenes.length} 个场景 | {chapter.wordCount} 字
-                      </p>
-                    </div>
-                    <button className="btn-outline text-body-sm">编辑</button>
+
+            {activeTab === 'chapters' && (
+              <div className="flex-1 card-elevated flex flex-col bg-surface rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between p-md border-b border-outline">
+                  <h3 className="text-title-md font-semibold text-on-surface">章节列表</h3>
+                  <button className="btn-accent">+ 添加章节</button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-md">
+                  <div className="space-y-md">
+                    {chapters.map((chapter, index) => (
+                      <div key={chapter.id} className="flex items-center gap-md p-md bg-surface-muted rounded-lg hover:bg-hover transition-all duration-normal border border-transparent hover:border-outline animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
+                        <span className="w-10 h-10 rounded-full text-on-primary flex items-center justify-center text-body-sm font-semibold flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7B61FF 0%, #5E50D6 100%)', boxShadow: 'var(--shadow-1)' }}>
+                          {index + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <input
+                            type="text"
+                            value={chapter.title}
+                            onChange={(e) => setChapters(prev => prev.map(c => c.id === chapter.id ? { ...c, title: e.target.value } : c))}
+                            className="text-body-md font-medium bg-transparent border-none outline-none text-on-surface w-full"
+                          />
+                          <p className="text-label-sm text-on-surface-variant">
+                            {chapter.scenes.length} 个场景 | {chapter.wordCount} 字
+                          </p>
+                        </div>
+                        <button className="btn-ghost text-body-sm transition-all duration-normal">编辑</button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'scenes' && (
+              <div className="flex-1 flex gap-lg overflow-hidden">
+                {/* Scene List Panel */}
+                <div className="w-72 card-elevated flex flex-col bg-surface rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="flex items-center justify-between p-md border-b border-outline">
+                    <h3 className="text-title-md font-semibold text-on-surface">场景列表</h3>
+                    <button className="btn-accent">+ 添加</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-md">
+                    {scenes.map((scene, index) => (
+                      <button
+                        key={scene.id}
+                        onClick={() => setSelectedScene(scene)}
+                        className={`w-full text-left p-md rounded-lg mb-sm transition-all duration-normal border ${
+                          selectedScene?.id === scene.id
+                            ? 'bg-primary text-on-primary border-primary'
+                            : 'bg-surface-muted hover:bg-hover border-transparent hover:border-outline'
+                        }`}
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                          ...(selectedScene?.id === scene.id ? { boxShadow: 'var(--shadow-2)' } : {})
+                        }}
+                      >
+                        <p className="text-body-sm font-semibold">{scene.title}</p>
+                        <p className="text-label-sm text-on-surface-variant mt-xs truncate">{scene.location} - {scene.timeOfDay}</p>
+                        <p className="text-label-sm mt-xs opacity-70">{getSceneWordCount(scene)} 字</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Scene Editor Panel */}
+                <div className="flex-1 aurora-card flex flex-col bg-surface rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between p-md border-b border-outline">
+                    <input
+                      type="text"
+                      value={selectedScene?.title || ''}
+                      onChange={(e) => setSelectedScene({ ...selectedScene!, title: e.target.value })}
+                      className="text-title-lg font-semibold bg-transparent border-none outline-none w-64 text-on-surface"
+                    />
+                    <div className="flex items-center gap-sm">
+                      <button onClick={handleAIContinue} disabled={isAIProcessing} className="btn-secondary text-body-sm disabled:opacity-50 transition-all duration-normal">{isAIProcessing ? '处理中...' : 'AI 续写'}</button>
+                      <button onClick={handleAIPolish} disabled={isAIProcessing} className="btn-secondary text-body-sm disabled:opacity-50 transition-all duration-normal">{isAIProcessing ? '处理中...' : 'AI 润色'}</button>
+                      <button onClick={handleAIGenerateScene} disabled={isAIProcessing} className="btn-secondary text-body-sm disabled:opacity-50 transition-all duration-normal">{isAIProcessing ? '处理中...' : 'AI 生成场景'}</button>
+                      <button className="btn-primary text-body-sm transition-all duration-normal">保存</button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-lg">
+                    <div className="grid grid-cols-3 gap-md mb-lg">
+                      <div>
+                        <label className="block text-label-md text-on-surface-variant mb-sm">时代背景</label>
+                        <input
+                          type="text"
+                          value={selectedScene?.background || ''}
+                          onChange={(e) => setSelectedScene({ ...selectedScene!, background: e.target.value })}
+                          className="input-field w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-label-md text-on-surface-variant mb-sm">场景地点</label>
+                        <input
+                          type="text"
+                          value={selectedScene?.location || ''}
+                          onChange={(e) => setSelectedScene({ ...selectedScene!, location: e.target.value })}
+                          className="input-field w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-label-md text-on-surface-variant mb-sm">时间</label>
+                        <select
+                          value={selectedScene?.timeOfDay || ''}
+                          onChange={(e) => setSelectedScene({ ...selectedScene!, timeOfDay: e.target.value })}
+                          className="input-field w-full"
+                        >
+                          <option value="">选择时间</option>
+                          <option value="清晨">清晨</option>
+                          <option value="上午">上午</option>
+                          <option value="中午">中午</option>
+                          <option value="下午">下午</option>
+                          <option value="黄昏">黄昏</option>
+                          <option value="夜晚">夜晚</option>
+                          <option value="深夜">深夜</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-label-md text-on-surface-variant mb-sm">出场人物</label>
+                        <div className="flex flex-wrap gap-xs">
+                          {characters.map((char) => (
+                            <button
+                              key={char.id}
+                              onClick={() => {
+                                const chars = selectedScene?.characters || [];
+                                const newChars = chars.includes(char.id)
+                                  ? chars.filter(id => id !== char.id)
+                                  : [...chars, char.id];
+                                setSelectedScene({ ...selectedScene!, characters: newChars });
+                              }}
+                              className={`px-sm py-xs rounded-full text-body-sm font-medium transition-all duration-normal ${
+                                selectedScene?.characters.includes(char.id)
+                                  ? 'bg-primary text-on-primary'
+                                  : 'bg-surface-muted text-on-surface-variant hover:bg-hover hover:text-on-surface'
+                              }`}
+                              style={selectedScene?.characters.includes(char.id) ? { boxShadow: 'var(--shadow-1)' } : undefined}
+                            >
+                              {char.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-label-md text-on-surface-variant mb-sm">氛围</label>
+                        <input
+                          type="text"
+                          value={selectedScene?.mood || ''}
+                          onChange={(e) => setSelectedScene({ ...selectedScene!, mood: e.target.value })}
+                          className="input-field w-full"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-label-md text-on-surface-variant mb-sm">剧情内容</label>
+                      <textarea
+                        value={selectedScene?.content || ''}
+                        onChange={(e) => setSelectedScene({ ...selectedScene!, content: e.target.value })}
+                        className="input-field w-full h-80 resize-none font-mono text-body-sm leading-relaxed"
+                        placeholder="编写场景剧情内容..."
+                      />
+                      <div className="flex justify-end mt-sm">
+                        <span className="text-label-sm text-on-surface-variant">{getSceneWordCount(selectedScene || { content: '' })} 字</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'characters' && (
+              <div className="flex-1 flex gap-lg overflow-hidden">
+                {/* Character List Panel */}
+                <div className="w-72 card-elevated flex flex-col bg-surface rounded-lg overflow-hidden flex-shrink-0">
+                  <div className="flex items-center justify-between p-md border-b border-outline">
+                    <h3 className="text-title-md font-semibold text-on-surface">人物列表</h3>
+                    <button className="btn-accent">+ 添加人物</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-md">
+                    {characters.map((char) => (
+                      <button
+                        key={char.id}
+                        onClick={() => setSelectedCharacter(char)}
+                        className={`w-full text-left p-md rounded-lg mb-sm transition-all duration-normal border ${
+                          selectedCharacter?.id === char.id
+                            ? 'bg-primary text-on-primary border-primary'
+                            : 'bg-surface-muted hover:bg-hover border-transparent hover:border-outline'
+                        }`}
+                        style={selectedCharacter?.id === char.id ? { boxShadow: 'var(--shadow-2)' } : undefined}
+                      >
+                        <div className="flex items-center gap-sm">
+                          <div className={`w-2.5 h-2.5 rounded-full ${
+                            char.role === 'lead' ? 'bg-error' : char.role === 'supporting' ? 'bg-info' : 'bg-on-surface-variant'
+                          }`} />
+                          <p className="text-body-sm font-semibold">{char.name}</p>
+                        </div>
+                        <p className="text-label-sm text-on-surface-variant mt-xs">{char.personality}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Character Editor Panel */}
+                <div className="flex-1 card-elevated flex flex-col bg-surface rounded-lg overflow-hidden">
+                  {selectedCharacter ? (
+                    <>
+                      <div className="flex items-center justify-between p-md border-b border-outline">
+                        <div className="flex items-center gap-sm">
+                          <h3 className="text-title-lg font-semibold text-on-surface">{selectedCharacter.name}</h3>
+                          <span className={`px-sm py-xs rounded-full text-label-sm font-medium ${ROLE_COLORS[selectedCharacter.role].bg} ${ROLE_COLORS[selectedCharacter.role].text}`}>
+                            {selectedCharacter.role === 'lead' ? '主角' : selectedCharacter.role === 'supporting' ? '配角' : '群众'}
+                          </span>
+                        </div>
+                        <button className="btn-primary text-body-sm transition-all duration-normal">保存</button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-lg">
+                        <div className="grid grid-cols-2 gap-md mb-lg">
+                          <div>
+                            <label className="block text-label-md text-on-surface-variant mb-sm">角色类型</label>
+                            <select
+                              value={selectedCharacter.role}
+                              onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, role: e.target.value as Character['role'] } : c))}
+                              className="input-field w-full"
+                            >
+                              <option value="lead">主角</option>
+                              <option value="supporting">配角</option>
+                              <option value="extra">群众</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-label-md text-on-surface-variant mb-sm">年龄</label>
+                            <input
+                              type="number"
+                              value={selectedCharacter.age}
+                              onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, age: Number(e.target.value) } : c))}
+                              className="input-field w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-label-md text-on-surface-variant mb-sm">性格特点</label>
+                            <input
+                              type="text"
+                              value={selectedCharacter.personality}
+                              onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, personality: e.target.value } : c))}
+                              className="input-field w-full"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-label-md text-on-surface-variant mb-sm">核心动机</label>
+                            <input
+                              type="text"
+                              value={selectedCharacter.motivation}
+                              onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, motivation: e.target.value } : c))}
+                              className="input-field w-full"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mb-lg">
+                          <label className="block text-label-md text-on-surface-variant mb-sm">人物背景</label>
+                          <textarea
+                            value={selectedCharacter.background}
+                            onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, background: e.target.value } : c))}
+                            className="input-field w-full h-32 resize-none"
+                            placeholder="描述人物的背景故事..."
+                          />
+                        </div>
+
+                        <div className="mb-lg">
+                          <label className="block text-label-md text-on-surface-variant mb-sm">人物描述</label>
+                          <textarea
+                            value={selectedCharacter.description}
+                            onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, description: e.target.value } : c))}
+                            className="input-field w-full h-32 resize-none"
+                            placeholder="描述人物的外貌和性格..."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-label-md text-on-surface-variant mb-sm">外貌特征</label>
+                          <div className="grid grid-cols-3 gap-md">
+                            <div>
+                              <label className="block text-label-sm text-on-surface-variant mb-sm">发型</label>
+                              <input
+                                type="text"
+                                value={selectedCharacter.appearance.hair}
+                                onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, appearance: { ...c.appearance, hair: e.target.value } } : c))}
+                                className="input-field w-full"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-label-sm text-on-surface-variant mb-sm">眼睛</label>
+                              <input
+                                type="text"
+                                value={selectedCharacter.appearance.eyes}
+                                onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, appearance: { ...c.appearance, eyes: e.target.value } } : c))}
+                                className="input-field w-full"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-label-sm text-on-surface-variant mb-sm">风格</label>
+                              <input
+                                type="text"
+                                value={selectedCharacter.appearance.style}
+                                onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, appearance: { ...c.appearance, style: e.target.value } } : c))}
+                                className="input-field w-full"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-on-surface-variant">
+                      <div className="text-center">
+                        <svg className="w-16 h-16 mx-auto mb-md opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <p className="text-body-md">选择一个人物查看详情</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeMode === 'upload' && (
+          <div className="flex-1 aurora-card flex flex-col bg-surface rounded-lg overflow-hidden">
+            <div className="p-lg border-b border-outline">
+              <h3 className="text-title-lg font-semibold tracking-tight text-on-surface mb-sm">上传剧本</h3>
+              <p className="text-body-sm text-on-surface-variant">支持上传 .txt、.docx、.md 格式的剧本文件</p>
+            </div>
+            <div className="flex-1 flex items-center justify-center p-lg">
+              <div className="w-full max-w-md">
+                <div className="border-2 border-dashed border-outline rounded-lg p-xl bg-surface-muted hover:border-tertiary transition-all duration-normal" style={{ boxShadow: 'var(--shadow-1)' }}>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".txt,.docx,.md"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="script-upload"
+                  />
+                  <label htmlFor="script-upload" className="cursor-pointer flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center mb-md" style={{ background: 'linear-gradient(135deg, #7B61FF 0%, #5E50D6 100%)' }}>
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                    </div>
+                    <p className="text-body-lg font-medium text-on-surface mb-sm">点击或拖拽文件到此处</p>
+                    <p className="text-body-sm text-on-surface-variant">支持 .txt、.docx、.md 格式</p>
+                  </label>
+                </div>
+
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-lg space-y-sm">
+                    <h4 className="text-body-md font-medium text-on-surface">已上传文件</h4>
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-md bg-surface-muted rounded-lg border border-outline transition-all duration-normal">
+                        <div className="flex items-center gap-sm">
+                          <svg className="w-5 h-5 text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          <span className="text-body-sm text-on-surface">{file.name}</span>
+                        </div>
+                        <button onClick={() => removeFile(index)} className="text-on-surface-variant hover:text-error transition-all duration-normal">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <button className="w-full btn-primary mt-md transition-all duration-normal">解析剧本</button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {activeTab === 'scenes' && (
-          <div className="flex-1 flex gap-lg">
-            <div className="w-72 card flex flex-col">
-              <div className="flex items-center justify-between p-md border-b border-outline">
-                <h3 className="text-body-md font-semibold text-on-surface">场景列表</h3>
-                <button className="btn-purple">+ 添加</button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-md">
-                {scenes.map((scene) => (
-                  <button
-                    key={scene.id}
-                    onClick={() => setSelectedScene(scene)}
-                    className={`w-full text-left p-md rounded-lg mb-sm transition-colors ${
-                      selectedScene?.id === scene.id ? 'bg-primary text-on-primary' : 'bg-secondary hover:bg-hover'
-                    }`}
-                  >
-                    <p className="text-body-sm font-medium">{scene.title}</p>
-                    <p className="text-body-xs text-muted mt-xs truncate">{scene.location} - {scene.timeOfDay}</p>
-                    <p className="text-body-xs mt-xs opacity-70">{getSceneWordCount(scene)} 字</p>
-                  </button>
-                ))}
-              </div>
+        {activeMode === 'generate' && (
+          <div className="flex-1 aurora-card flex flex-col bg-surface rounded-lg overflow-hidden">
+            <div className="p-lg border-b border-outline">
+              <h3 className="text-title-lg font-semibold tracking-tight text-on-surface mb-sm">AI 生成剧本</h3>
+              <p className="text-body-sm text-on-surface-variant">输入剧本基本信息，AI 将为您生成完整剧本</p>
             </div>
-
-            <div className="flex-1 card flex flex-col">
-              <div className="flex items-center justify-between p-md border-b border-outline">
-                <input
-                  type="text"
-                  value={selectedScene?.title || ''}
-                  onChange={(e) => setSelectedScene({ ...selectedScene!, title: e.target.value })}
-                  className="text-headline-md font-semibold bg-transparent border-none outline-none w-64"
-                />
-                <div className="flex items-center gap-md">
-                  <button onClick={() => handleAiAction('continue')} className="btn-outline text-body-sm">AI 续写</button>
-                  <button onClick={() => handleAiAction('polish')} className="btn-outline text-body-sm">AI 润色</button>
-                  <button onClick={() => handleAiAction('generate')} className="btn-outline text-body-sm">AI 生成场景</button>
-                  <button className="btn-secondary">保存</button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-lg">
-                <div className="grid grid-cols-3 gap-md mb-lg">
+            <div className="flex-1 overflow-y-auto p-lg">
+              <div className="max-w-2xl mx-auto space-y-md">
+                <div className="grid grid-cols-2 gap-md">
                   <div>
-                    <label className="block text-label-md text-on-surface-variant mb-sm">时代背景</label>
+                    <label className="block text-label-md text-on-surface-variant mb-sm">剧本标题</label>
                     <input
                       type="text"
-                      value={selectedScene?.background || ''}
-                      onChange={(e) => setSelectedScene({ ...selectedScene!, background: e.target.value })}
+                      value={generateForm.title}
+                      onChange={(e) => setGenerateForm(prev => ({ ...prev, title: e.target.value }))}
                       className="input-field w-full"
+                      placeholder="输入剧本标题"
                     />
                   </div>
                   <div>
-                    <label className="block text-label-md text-on-surface-variant mb-sm">场景地点</label>
-                    <input
-                      type="text"
-                      value={selectedScene?.location || ''}
-                      onChange={(e) => setSelectedScene({ ...selectedScene!, location: e.target.value })}
-                      className="input-field w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-label-md text-on-surface-variant mb-sm">时间</label>
+                    <label className="block text-label-md text-on-surface-variant mb-sm">题材类型</label>
                     <select
-                      value={selectedScene?.timeOfDay || ''}
-                      onChange={(e) => setSelectedScene({ ...selectedScene!, timeOfDay: e.target.value })}
+                      value={generateForm.genre}
+                      onChange={(e) => setGenerateForm(prev => ({ ...prev, genre: e.target.value }))}
                       className="input-field w-full"
                     >
-                      <option value="">选择时间</option>
-                      <option value="清晨">清晨</option>
-                      <option value="上午">上午</option>
-                      <option value="中午">中午</option>
-                      <option value="下午">下午</option>
-                      <option value="黄昏">黄昏</option>
-                      <option value="夜晚">夜晚</option>
-                      <option value="深夜">深夜</option>
+                      <option value="">选择题材</option>
+                      <option value="rebirth">重生逆袭</option>
+                      <option value="fantasy">玄幻仙侠</option>
+                      <option value="modern">都市情感</option>
+                      <option value="historical">历史传奇</option>
+                      <option value="sci-fi">科幻未来</option>
+                      <option value="comedy">喜剧搞笑</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-label-md text-on-surface-variant mb-sm">出场人物</label>
-                    <div className="flex flex-wrap gap-xs">
-                      {characters.map((char) => (
-                        <button
-                          key={char.id}
-                          onClick={() => {
-                            const chars = selectedScene?.characters || [];
-                            const newChars = chars.includes(char.id)
-                              ? chars.filter(id => id !== char.id)
-                              : [...chars, char.id];
-                            setSelectedScene({ ...selectedScene!, characters: newChars });
-                          }}
-                          className={`px-sm py-xs rounded-full text-body-sm ${
-                            selectedScene?.characters.includes(char.id)
-                              ? 'bg-primary text-on-primary'
-                              : 'bg-secondary text-on-surface-variant hover:bg-hover'
-                          }`}
-                        >
-                          {char.name}
-                        </button>
-                      ))}
-                    </div>
+                  <div>
+                    <label className="block text-label-md text-on-surface-variant mb-sm">风格</label>
+                    <select
+                      value={generateForm.style}
+                      onChange={(e) => setGenerateForm(prev => ({ ...prev, style: e.target.value }))}
+                      className="input-field w-full"
+                    >
+                      <option value="">选择风格</option>
+                      <option value="realistic">写实</option>
+                      <option value="anime">动漫</option>
+                      <option value="cartoon">卡通</option>
+                      <option value="cyberpunk">赛博朋克</option>
+                      <option value="fantasy">奇幻</option>
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-label-md text-on-surface-variant mb-sm">氛围</label>
+                    <label className="block text-label-md text-on-surface-variant mb-sm">场景数量</label>
                     <input
-                      type="text"
-                      value={selectedScene?.mood || ''}
-                      onChange={(e) => setSelectedScene({ ...selectedScene!, mood: e.target.value })}
+                      type="number"
+                      min="3"
+                      max="20"
+                      value={generateForm.sceneCount}
+                      onChange={(e) => setGenerateForm(prev => ({ ...prev, sceneCount: Number(e.target.value) }))}
                       className="input-field w-full"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-label-md text-on-surface-variant mb-sm">剧情内容</label>
+                  <label className="block text-label-md text-on-surface-variant mb-sm">故事梗概</label>
                   <textarea
-                    value={selectedScene?.content || ''}
-                    onChange={(e) => setSelectedScene({ ...selectedScene!, content: e.target.value })}
-                    className="input-field w-full h-80 resize-none font-mono text-body-sm leading-relaxed"
-                    placeholder="编写场景剧情内容..."
+                    value={generateForm.synopsis}
+                    onChange={(e) => setGenerateForm(prev => ({ ...prev, synopsis: e.target.value }))}
+                    className="input-field w-full h-40 resize-none"
+                    placeholder="简要描述故事内容和核心冲突..."
                   />
-                  <div className="flex justify-end mt-sm">
-                    <span className="text-body-xs text-on-surface-variant">{getSceneWordCount(selectedScene || { content: '' })} 字</span>
-                  </div>
                 </div>
+                <button
+                  onClick={handleGenerateScript}
+                  disabled={isGenerating || !generateForm.title.trim() || !generateForm.synopsis.trim()}
+                  className="w-full btn-primary mt-md disabled:opacity-50 transition-all duration-normal"
+                >
+                  {isGenerating ? '生成中...' : '生成剧本'}
+                </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'characters' && (
-          <div className="flex-1 flex gap-lg">
-            <div className="w-72 card flex flex-col">
-              <div className="flex items-center justify-between p-md border-b border-outline">
-                <h3 className="text-body-md font-semibold text-on-surface">人物列表</h3>
-                <button className="btn-purple">+ 添加人物</button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-md">
-                {characters.map((char) => (
-                  <button
-                    key={char.id}
-                    onClick={() => setSelectedCharacter(char)}
-                    className={`w-full text-left p-md rounded-lg mb-sm transition-colors ${
-                      selectedCharacter?.id === char.id ? 'bg-primary text-on-primary' : 'bg-secondary hover:bg-hover'
-                    }`}
-                  >
-                    <div className="flex items-center gap-sm">
-                      <div className={`w-2 h-2 rounded-full ${
-                        char.role === 'lead' ? 'bg-red-500' : char.role === 'supporting' ? 'bg-blue-500' : 'bg-gray-500'
-                      }`} />
-                      <p className="text-body-sm font-medium">{char.name}</p>
-                    </div>
-                    <p className="text-body-xs text-muted mt-xs">{char.personality}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex-1 card flex flex-col">
-              {selectedCharacter ? (
-                <>
-                  <div className="flex items-center justify-between p-md border-b border-outline">
-                    <h3 className="text-headline-md font-semibold text-on-surface">{selectedCharacter.name}</h3>
-                    <button className="btn-secondary">保存</button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-lg">
-                    <div className="grid grid-cols-2 gap-md mb-lg">
-                      <div>
-                        <label className="block text-label-md text-on-surface-variant mb-sm">角色类型</label>
-                        <select
-                          value={selectedCharacter.role}
-                          onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, role: e.target.value as Character['role'] } : c))}
-                          className="input-field w-full"
-                        >
-                          <option value="lead">主角</option>
-                          <option value="supporting">配角</option>
-                          <option value="extra">群众</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-label-md text-on-surface-variant mb-sm">年龄</label>
-                        <input
-                          type="number"
-                          value={selectedCharacter.age}
-                          onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, age: Number(e.target.value) } : c))}
-                          className="input-field w-full"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-label-md text-on-surface-variant mb-sm">性格特点</label>
-                        <input
-                          type="text"
-                          value={selectedCharacter.personality}
-                          onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, personality: e.target.value } : c))}
-                          className="input-field w-full"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-label-md text-on-surface-variant mb-sm">核心动机</label>
-                        <input
-                          type="text"
-                          value={selectedCharacter.motivation}
-                          onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, motivation: e.target.value } : c))}
-                          className="input-field w-full"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mb-lg">
-                      <label className="block text-label-md text-on-surface-variant mb-sm">人物背景</label>
-                      <textarea
-                        value={selectedCharacter.background}
-                        onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, background: e.target.value } : c))}
-                        className="input-field w-full h-32 resize-none"
-                        placeholder="描述人物的背景故事..."
-                      />
-                    </div>
-
-                    <div className="mb-lg">
-                      <label className="block text-label-md text-on-surface-variant mb-sm">人物描述</label>
-                      <textarea
-                        value={selectedCharacter.description}
-                        onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, description: e.target.value } : c))}
-                        className="input-field w-full h-32 resize-none"
-                        placeholder="描述人物的外貌和性格..."
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-label-md text-on-surface-variant mb-sm">外貌特征</label>
-                      <div className="grid grid-cols-3 gap-md">
-                        <div>
-                          <label className="block text-body-xs text-on-surface-variant mb-sm">发型</label>
-                          <input
-                            type="text"
-                            value={selectedCharacter.appearance.hair}
-                            onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, appearance: { ...c.appearance, hair: e.target.value } } : c))}
-                            className="input-field w-full"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-body-xs text-on-surface-variant mb-sm">眼睛</label>
-                          <input
-                            type="text"
-                            value={selectedCharacter.appearance.eyes}
-                            onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, appearance: { ...c.appearance, eyes: e.target.value } } : c))}
-                            className="input-field w-full"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-body-xs text-on-surface-variant mb-sm">风格</label>
-                          <input
-                            type="text"
-                            value={selectedCharacter.appearance.style}
-                            onChange={(e) => setCharacters(prev => prev.map(c => c.id === selectedCharacter!.id ? { ...c, appearance: { ...c.appearance, style: e.target.value } } : c))}
-                            className="input-field w-full"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-on-surface-variant">
-                  <div className="text-center">
-                    <svg className="w-12 h-12 mx-auto mb-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    <p className="text-body-sm">选择一个人物查看详情</p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
       </div>
 
-      <div className="w-80">
-        <AIPanel presetAgents={['screenwriter']} />
+      {/* AI Panel */}
+      <div className="w-80 flex-shrink-0 animate-slide-right">
+        <div className="h-full rounded-lg border border-outline bg-surface overflow-hidden" style={{ boxShadow: 'var(--shadow-1)' }}>
+          <AIPanel variant="script" presetAgents={['screenwriter']} />
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import AIPanel from '@/components/AIPanel/AIPanel';
 
 interface KnowledgeItem {
   id: string;
@@ -138,7 +139,7 @@ export default function KnowledgeBase() {
 
   const filteredKnowledge = knowledge.filter((item) => {
     const matchesCategory = selectedCategory === '全部' || item.category === selectedCategory;
-    const matchesSearch = searchQuery === '' || 
+    const matchesSearch = searchQuery === '' ||
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
@@ -159,24 +160,25 @@ export default function KnowledgeBase() {
   }, []);
 
   return (
-    <div className="h-full flex gap-lg p-lg">
-      <div className="flex-1 flex flex-col gap-lg">
-        <div className="flex gap-md">
+    <div className="h-full overflow-y-auto flex gap-lg p-lg animate-fade-in">
+      <div className="flex-1 flex flex-col gap-lg min-w-0">
+        {/* Main tab switcher */}
+        <div className="flex gap-sm p-xs bg-surface-muted rounded-full w-fit">
           <button
             onClick={() => setActiveTab('library')}
-            className={activeTab === 'library' ? 'tab-active' : 'tab-inactive'}
+            className={`${activeTab === 'library' ? 'tab-active' : 'tab-inactive'} transition-all duration-normal`}
           >
             知识库
           </button>
           <button
             onClick={() => setActiveTab('prompts')}
-            className={activeTab === 'prompts' ? 'tab-active' : 'tab-inactive'}
+            className={`${activeTab === 'prompts' ? 'tab-active' : 'tab-inactive'} transition-all duration-normal`}
           >
             提示词词典
           </button>
           <button
             onClick={() => setActiveTab('templates')}
-            className={activeTab === 'templates' ? 'tab-active' : 'tab-inactive'}
+            className={`${activeTab === 'templates' ? 'tab-active' : 'tab-inactive'} transition-all duration-normal`}
           >
             提示词模板
           </button>
@@ -184,89 +186,123 @@ export default function KnowledgeBase() {
 
         {activeTab === 'library' && (
           <>
-            <div className="flex items-center justify-between">
-              <div className="flex gap-md">
+            {/* Filter bar + search */}
+            <div className="flex items-center justify-between gap-md animate-slide-up">
+              <div className="flex gap-xs flex-wrap">
                 {CATEGORIES.map((category) => (
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={selectedCategory === category ? 'btn-outline bg-primary text-on-primary' : 'btn-outline'}
+                    className={`${selectedCategory === category ? 'tab-active' : 'tab-inactive'} transition-all duration-normal`}
                   >
                     {category}
                   </button>
                 ))}
               </div>
               <div className="flex items-center gap-md">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="input-field w-64"
-                  placeholder="搜索知识..."
-                />
+                <div className="relative">
+                  <svg
+                    className="absolute left-md top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-muted pointer-events-none"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="input-field w-64 pl-[40px]"
+                    placeholder="搜索知识..."
+                  />
+                </div>
                 <button className="btn-secondary">搜索</button>
                 <button className="btn-primary">+ 添加知识</button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-md">
-                {filteredKnowledge.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedItem(item)}
-                    className={`card cursor-pointer hover:shadow-card transition-all ${
-                      selectedItem?.id === item.id ? 'ring-2 ring-primary' : ''
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-sm">
-                      <h4 className="text-body-md font-semibold text-on-surface">{item.title}</h4>
-                      <span className="badge">{item.category}</span>
-                    </div>
-                    <p className="text-body-sm text-on-surface-variant line-clamp-2 mb-sm">{item.content}</p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex gap-xs">
-                        {item.tags.map((tag) => (
-                          <span key={tag} className="badge-accent">{tag}</span>
-                        ))}
-                      </div>
-                      <span className="text-body-xs text-on-surface-variant">
-                        {item.updatedAt.toLocaleDateString('zh-CN')}
-                      </span>
-                    </div>
+            {/* Knowledge card grid */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {filteredKnowledge.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-on-surface-muted animate-fade-in">
+                  <div className="w-16 h-16 rounded-full bg-surface-muted flex items-center justify-center mb-md">
+                    <svg className="w-8 h-8 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                   </div>
-                ))}
-              </div>
+                  <p className="text-body-md font-medium text-on-surface-variant">未找到匹配的知识</p>
+                  <p className="text-body-sm text-on-surface-muted mt-xs">尝试更换关键词或分类</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-lg">
+                  {filteredKnowledge.map((item, index) => (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedItem(item)}
+                      className={`aurora-card cursor-pointer animate-slide-up ${selectedItem?.id === item.id ? 'border-tertiary' : ''}`}
+                      style={{
+                        animationDelay: `${index * 50}ms`,
+                        boxShadow: selectedItem?.id === item.id
+                          ? '0 0 0 2px var(--color-tertiary), var(--shadow-glow)'
+                          : undefined,
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-sm mb-sm">
+                        <h4 className="text-title-md font-semibold text-on-surface leading-snug">{item.title}</h4>
+                        <span className="badge flex-shrink-0">{item.category}</span>
+                      </div>
+                      <p className="text-body-sm text-on-surface-variant line-clamp-2 mb-md leading-relaxed">{item.content}</p>
+                      <div className="flex items-center justify-between gap-sm">
+                        <div className="flex gap-xs flex-wrap">
+                          {item.tags.map((tag) => (
+                            <span key={tag} className="badge-accent">{tag}</span>
+                          ))}
+                        </div>
+                        <span className="text-body-xs text-on-surface-muted flex-shrink-0">
+                          {item.updatedAt.toLocaleDateString('zh-CN')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
 
         {activeTab === 'prompts' && (
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0 animate-fade-in">
             <div className="grid grid-cols-2 gap-lg">
-              {PROMPT_CATEGORIES.map((category) => (
-                <div key={category.id} className="card">
+              {PROMPT_CATEGORIES.map((category, catIndex) => (
+                <div
+                  key={category.id}
+                  className="card animate-slide-up"
+                  style={{ animationDelay: `${catIndex * 50}ms` }}
+                >
                   <div className="flex items-center gap-sm mb-md">
-                    <span className="text-lg">{category.icon}</span>
-                    <h4 className="text-body-md font-semibold text-on-surface">{category.name}</h4>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg, #7B61FF 0%, #5E50D6 100%)' }}>
+                      {category.icon}
+                    </div>
+                    <h4 className="text-title-md font-semibold text-on-surface">{category.name}</h4>
                   </div>
-                  <div className="space-y-sm">
+                  <div className="space-y-xs">
                     {category.items.map((item) => (
                       <div
                         key={item.label}
-                        className="flex items-center justify-between p-sm bg-secondary rounded-lg hover:bg-hover transition-colors"
+                        className="flex items-center justify-between gap-sm p-sm bg-surface-muted rounded-lg hover:bg-hover transition-all duration-normal"
                       >
                         <span className="text-body-sm text-on-surface">{item.label}</span>
-                        <div className="flex gap-xs">
+                        <div className="flex gap-xs flex-shrink-0">
                           <button
                             onClick={() => handleAddToPrompt(item.value)}
-                            className="btn-xs text-primary hover:bg-primary/10"
+                            className="text-body-sm font-medium text-tertiary hover:bg-purple-light rounded-full px-sm py-xs transition-all duration-normal"
                           >
                             添加
                           </button>
                           <button
                             onClick={() => handleCopy(item.value, `prompt-${category.id}-${item.label}`)}
-                            className="btn-xs text-on-surface-variant hover:text-on-surface"
+                            className="text-body-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-muted rounded-full px-sm py-xs transition-all duration-normal"
                           >
                             {copiedId === `prompt-${category.id}-${item.label}` ? '✓' : '复制'}
                           </button>
@@ -281,39 +317,50 @@ export default function KnowledgeBase() {
         )}
 
         {activeTab === 'templates' && (
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0 animate-fade-in">
             <div className="grid grid-cols-2 gap-lg">
-              {PROMPT_TEMPLATES.map((template) => (
-                <div key={template.id} className="card">
-                  <div className="flex items-center justify-between mb-md">
-                    <h4 className="text-body-md font-semibold text-on-surface">{template.name}</h4>
+              {PROMPT_TEMPLATES.map((template, tplIndex) => (
+                <div
+                  key={template.id}
+                  className="card animate-slide-up"
+                  style={{ animationDelay: `${tplIndex * 50}ms` }}
+                >
+                  <div className="flex items-center justify-between gap-sm mb-md">
+                    <h4 className="text-title-md font-semibold text-on-surface">{template.name}</h4>
                     <button
                       onClick={() => handleCopy(template.template, `template-${template.id}`)}
-                      className={`btn-outline text-body-sm ${copiedId === `template-${template.id}` ? 'bg-primary text-on-primary' : ''}`}
+                      className={`btn-ghost text-body-sm transition-all duration-normal ${copiedId === `template-${template.id}` ? 'bg-success-bg text-success' : ''}`}
                     >
                       {copiedId === `template-${template.id}` ? '已复制' : '复制'}
                     </button>
                   </div>
                   <p className="text-body-sm text-on-surface-variant mb-sm">{template.description}</p>
-                  <pre className="p-md bg-secondary rounded-lg text-body-sm text-on-surface font-mono whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  <pre className="p-md bg-surface-muted rounded-lg text-body-sm text-on-surface font-mono whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">
                     {template.template}
                   </pre>
                 </div>
               ))}
 
-              <div className="card">
-                <h4 className="text-body-md font-semibold text-on-surface mb-md">套话改写指南</h4>
-                <p className="text-body-sm text-on-surface-variant mb-sm">
+              <div className="card animate-slide-up" style={{ animationDelay: `${PROMPT_TEMPLATES.length * 50}ms` }}>
+                <div className="flex items-center gap-sm mb-md">
+                  <div className="w-9 h-9 rounded-full bg-error-bg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-title-md font-semibold text-on-surface">套话改写指南</h4>
+                </div>
+                <p className="text-body-sm text-on-surface-variant mb-md leading-relaxed">
                   将抽象的「感觉词」拆解成制造这种感觉的物理元素——材质、光线、色彩、空气——画面立即变稳。
                 </p>
-                <div className="space-y-sm">
+                <div className="space-y-xs">
                   {SLOP_TRAPS.map((trap, index) => (
-                    <div key={index} className="p-sm bg-secondary rounded-lg">
-                      <div className="flex items-center justify-between mb-xs">
-                        <span className="text-body-sm text-error font-medium">{trap.original}</span>
-                        <span className="text-body-xs text-on-surface-variant">→</span>
+                    <div key={index} className="p-sm bg-surface-muted rounded-lg transition-all duration-normal hover:bg-hover">
+                      <div className="flex items-center gap-sm mb-xs">
+                        <span className="text-body-sm text-error font-medium px-sm py-xs bg-error-bg rounded-full">{trap.original}</span>
+                        <span className="text-on-surface-muted">→</span>
                       </div>
-                      <span className="text-body-sm text-on-surface">{trap.rewrite}</span>
+                      <span className="text-body-sm text-on-surface leading-relaxed">{trap.rewrite}</span>
                     </div>
                   ))}
                 </div>
@@ -323,14 +370,15 @@ export default function KnowledgeBase() {
         )}
       </div>
 
-      <div className="w-80 flex flex-col gap-md">
+      {/* Right sidebar */}
+      <div className="w-80 flex-shrink-0 flex flex-col gap-md">
         {activeTab === 'prompts' && (
-          <div className="card flex-1">
+          <div className="aurora-card flex-1 flex flex-col animate-fade-in" style={{ boxShadow: 'var(--shadow-2)' }}>
             <div className="flex items-center justify-between mb-md">
-              <h3 className="text-body-md font-semibold text-on-surface">自定义提示词</h3>
+              <h3 className="text-title-md font-semibold tracking-tight text-on-surface">自定义提示词</h3>
               <button
                 onClick={() => handleCopy(customPrompt, 'custom-prompt')}
-                className={`btn-outline text-body-sm ${copiedId === 'custom-prompt' ? 'bg-primary text-on-primary' : ''}`}
+                className={`btn-ghost text-body-sm transition-all duration-normal ${copiedId === 'custom-prompt' ? 'bg-success-bg text-success' : ''}`}
               >
                 {copiedId === 'custom-prompt' ? '已复制' : '复制'}
               </button>
@@ -338,23 +386,26 @@ export default function KnowledgeBase() {
             <textarea
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}
-              className="input-field w-full h-64 resize-none font-mono text-body-sm"
+              className="input-field flex-1 w-full min-h-[16rem] resize-none font-mono text-body-sm"
               placeholder="点击左侧提示词添加到这里..."
             />
-            <button onClick={() => setCustomPrompt('')} className="btn-outline text-body-sm mt-md w-full">
+            <button
+              onClick={() => setCustomPrompt('')}
+              className="btn-outline text-body-sm mt-md w-full transition-all duration-normal"
+            >
               清空
             </button>
           </div>
         )}
 
         {activeTab === 'library' && selectedItem && (
-          <div className="card">
-            <h3 className="text-body-lg font-semibold text-on-surface mb-md">知识详情</h3>
+          <div className="aurora-card animate-scale-in" style={{ boxShadow: 'var(--shadow-3)' }}>
+            <h3 className="text-title-lg font-semibold tracking-tight text-on-surface mb-md">知识详情</h3>
             <div className="space-y-md">
-              <h4 className="text-headline-md font-semibold text-on-surface">{selectedItem.title}</h4>
+              <h4 className="text-headline-md font-semibold tracking-tight text-on-surface leading-tight">{selectedItem.title}</h4>
               <div className="flex items-center gap-md">
                 <span className="badge">{selectedItem.category}</span>
-                <span className="text-body-xs text-on-surface-variant">
+                <span className="text-body-xs text-on-surface-muted">
                   更新于 {selectedItem.updatedAt.toLocaleDateString('zh-CN')}
                 </span>
               </div>
@@ -363,31 +414,38 @@ export default function KnowledgeBase() {
                   <span key={tag} className="badge-accent">{tag}</span>
                 ))}
               </div>
-              <div className="p-md bg-secondary rounded-lg">
-                <p className="text-body-sm text-on-surface">{selectedItem.content}</p>
+              <div className="p-md bg-surface-muted rounded-lg">
+                <p className="text-body-sm text-on-surface leading-relaxed">{selectedItem.content}</p>
               </div>
               <button
                 onClick={() => handleCopy(selectedItem.content, `knowledge-${selectedItem.id}`)}
-                className={`btn-secondary w-full ${copiedId === `knowledge-${selectedItem.id}` ? 'bg-primary' : ''}`}
+                className={`btn-secondary w-full transition-all duration-normal ${copiedId === `knowledge-${selectedItem.id}` ? 'bg-success-bg text-success border-transparent' : ''}`}
               >
                 {copiedId === `knowledge-${selectedItem.id}` ? '已复制' : '复制内容'}
               </button>
               <div className="flex gap-md">
-                <button className="flex-1 btn-outline">编辑</button>
-                <button className="flex-1 btn-outline text-error">删除</button>
+                <button className="flex-1 btn-outline transition-all duration-normal">编辑</button>
+                <button className="flex-1 btn-outline text-error transition-all duration-normal">删除</button>
               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'library' && !selectedItem && (
-          <div className="card flex-1 flex flex-col items-center justify-center py-xl text-on-surface-variant">
-            <svg className="w-12 h-12 mb-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            <p className="text-body-sm">选择一条知识查看详情</p>
+          <div className="card flex-1 flex flex-col items-center justify-center text-center animate-fade-in" style={{ boxShadow: 'var(--shadow-1)' }}>
+            <div className="w-16 h-16 rounded-full bg-surface-muted flex items-center justify-center mb-md">
+              <svg className="w-8 h-8 text-on-surface-muted opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            <p className="text-body-md font-medium text-on-surface-variant">选择一条知识查看详情</p>
+            <p className="text-body-sm text-on-surface-muted mt-xs">点击左侧卡片即可预览完整内容</p>
           </div>
         )}
+      </div>
+
+      <div className="fixed right-lg bottom-12 z-50 animate-slide-up">
+        <AIPanel variant="knowledge" collapsible defaultCollapsed />
       </div>
     </div>
   );

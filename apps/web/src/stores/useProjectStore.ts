@@ -10,10 +10,12 @@ interface ProjectState {
   title: string;
   globalConfig: GlobalConfig;
   totalCost: number;
+  credits: number;
 
   setProject: (id: string, title: string) => void;
   updateConfig: (config: Partial<GlobalConfig>) => void;
   setTotalCost: (cost: number) => void;
+  setCredits: (credits: number) => void;
   reset: () => void;
 }
 
@@ -32,6 +34,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   title: '',
   globalConfig: { ...DEFAULT_CONFIG },
   totalCost: 0,
+  credits: 1000,
 
   setProject: (id, title) => set({ projectId: id, title }),
 
@@ -42,11 +45,14 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   setTotalCost: (cost) => set({ totalCost: cost }),
 
+  setCredits: (credits) => set({ credits }),
+
   reset: () =>
     set({
       projectId: null,
       title: '',
       globalConfig: { ...DEFAULT_CONFIG },
       totalCost: 0,
+      credits: 1000,
     }),
 }));

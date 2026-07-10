@@ -249,4 +249,8 @@ ws://host/api/v1/ws/projects/{project_id}
 
 ## 📝 License
 
+##  Picture
+<img width="3056" height="1588" alt="9" src="https://github.com/user-attachments/assets/77b5d50e-c04a-4b0f-82d4-e16730779a75" />
+
+
 MIT

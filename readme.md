@@ -250,6 +250,14 @@ ws://host/api/v1/ws/projects/{project_id}
 ## 📝 License
 
 ##  Picture
+<img width="3056" height="1588" alt="1" src="https://github.com/user-attachments/assets/a2e3b6e2-f6a0-4561-9d98-ee016148b459" />
+<img width="3056" height="1588" alt="2" src="https://github.com/user-attachments/assets/fd565838-ce57-4f49-9761-2bb161c73630" />
+<img width="3056" height="1588" alt="3" src="https://github.com/user-attachments/assets/d1c4a8b8-5816-44a0-ab92-30f54b1eec8c" />
+<img width="3056" height="1588" alt="4" src="https://github.com/user-attachments/assets/c07946c8-2c3b-4449-bd7b-67ac3a2bad0b" />
+<img width="3056" height="1588" alt="5" src="https://github.com/user-attachments/assets/1cee1fa2-e52d-48db-a392-d827bd07e0d8" />
+<img width="3056" height="1588" alt="6" src="https://github.com/user-attachments/assets/98be5ee3-2ed5-4b53-8e8d-09fa206fe99e" />
+<img width="3056" height="1588" alt="7" src="https://github.com/user-attachments/assets/636d0186-b79b-4d97-8c31-409402273496" />
+<img width="3056" height="1588" alt="8" src="https://github.com/user-attachments/assets/ec32b7f0-8033-4a33-b63a-f9e0fc35225a" />
 <img width="3056" height="1588" alt="9" src="https://github.com/user-attachments/assets/77b5d50e-c04a-4b0f-82d4-e16730779a75" />
 
 
